@@ -10,11 +10,14 @@ import (
 func SetupRouter() *gin.Engine {
 	r := gin.Default()
 
-	// API
-	r.GET("/ping", handler.Ping)
+	// User
 	r.POST("/user/create", handler.CreateUser)
 
-	// WebSocket: NHIỀU PHÒNG
+	// Match API
+	r.POST("/match/create", handler.CreateMatch)
+	r.POST("/match/join", handler.JoinMatch)
+
+	// WebSocket (phải có match_id)
 	r.GET("/ws/:match_id", websocket.HandleWebSocket)
 
 	return r
