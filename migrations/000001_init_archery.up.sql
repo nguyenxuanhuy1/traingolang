@@ -4,6 +4,7 @@ create table users (
    password   text not null,
    role       text not null default 'user',
    avatar     text,
-   elo        integer default 1000,
+   locked     boolean default false,
+   coin       integer default 0,
    created_at timestamptz default now()
 );

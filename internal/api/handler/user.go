@@ -5,15 +5,17 @@ import (
 
 	"traingolang/internal/auth"
 	"traingolang/internal/config"
+	"traingolang/internal/repository"
 
 	"github.com/gin-gonic/gin"
 	"golang.org/x/crypto/bcrypt"
 )
 
 type RegisterRequest struct {
-	Username string `json:"username" binding:"required,min=3"`
+	Username string `json:"username" binding:"required,min=6"`
 	Password string `json:"password" binding:"required,min=6"`
 }
+
 type LoginRequest struct {
 	Username string `json:"username" binding:"required"`
 	Password string `json:"password" binding:"required"`
@@ -21,8 +23,11 @@ type LoginRequest struct {
 
 func Register(c *gin.Context) {
 	var req RegisterRequest
+
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "Username và Password phải tối thiểu 6 ký tự",
+		})
 		return
 	}
 
@@ -31,25 +36,31 @@ func Register(c *gin.Context) {
 		bcrypt.DefaultCost,
 	)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "hash password failed"})
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "hash password failed",
+		})
 		return
 	}
 
-	var userID int64
-	err = config.DB.QueryRow(`
-		INSERT INTO users (username, password)
-		VALUES ($1, $2)
-		RETURNING id
-	`, req.Username, string(passwordHash)).Scan(&userID)
+	userRepo := repository.NewUserRepository(config.DB)
 
+	_, err = userRepo.Create(req.Username, string(passwordHash))
 	if err != nil {
-		c.JSON(http.StatusConflict, gin.H{"error": "username already exists"})
+		switch err {
+		case repository.ErrUserExists:
+			c.JSON(http.StatusConflict, gin.H{
+				"error": "Tài khoản đã tồn tại",
+			})
+		default:
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"error": "internal server error",
+			})
+		}
 		return
 	}
 
 	c.JSON(http.StatusCreated, gin.H{
-		"id":       userID,
-		"username": req.Username,
+		"message": "Đăng ký tài khoản thành công",
 	})
 }
 
@@ -60,38 +71,49 @@ func Login(c *gin.Context) {
 		return
 	}
 
-	var (
-		userID       int64
-		passwordHash string
-		role         string
-	)
+	userRepo := repository.NewUserRepository(config.DB)
 
-	err := config.DB.QueryRow(`
-		SELECT id, password, role
-		FROM users
-		WHERE username = $1
-	`, req.Username).Scan(&userID, &passwordHash, &role)
-
+	user, err := userRepo.FindByUsername(req.Username)
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid credentials"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid credentials"})
 		return
 	}
 
+	// 1. Check user bị khoá
+	if user.Locked {
+		c.JSON(http.StatusForbidden, gin.H{
+			"error": "Tài khoản đã bị khoá",
+		})
+		return
+	}
+
+	// 2. Check password
 	if err := bcrypt.CompareHashAndPassword(
-		[]byte(passwordHash),
+		[]byte(user.Password),
 		[]byte(req.Password),
 	); err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid credentials"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid credentials"})
 		return
 	}
 
-	token, err := auth.GenerateToken(userID, role)
+	// 3. Generate access token (15 phút)
+	accessToken, err := auth.GenerateAccessToken(user.ID, user.Role)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "generate token failed"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "generate access token failed"})
 		return
 	}
 
+	// 4. Generate refresh token (1 giờ)
+	refreshToken, err := auth.GenerateRefreshToken(user.ID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "generate refresh token failed"})
+		return
+	}
+
+	// 5. Response
 	c.JSON(http.StatusOK, gin.H{
-		"access_token": token,
+		"access_token":  accessToken,
+		"refresh_token": refreshToken,
+		// "username":      user.Username,
 	})
 }
