@@ -19,6 +19,13 @@ type User struct {
 	Role     string
 	Locked   bool
 }
+type UserProfile struct {
+	ID       int64   `json:"id"`
+	Username string  `json:"username"`
+	Avatar   *string `json:"avatar"`
+	Role     string  `json:"role"`
+	Locked   bool    `json:"locked"`
+}
 
 type UserRepository struct {
 	db *sql.DB
@@ -67,6 +74,32 @@ func (r *UserRepository) FindByUsername(username string) (*User, error) {
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return nil, ErrInvalidLogin
+		}
+		return nil, err
+	}
+
+	return &u, nil
+}
+
+// Tìm user theo ID
+func (r *UserRepository) FindByID(id int64) (*UserProfile, error) {
+	var u UserProfile
+
+	err := r.db.QueryRow(`
+		SELECT id, username, avatar, role, locked
+		FROM users
+		WHERE id = $1
+	`, id).Scan(
+		&u.ID,
+		&u.Username,
+		&u.Avatar,
+		&u.Role,
+		&u.Locked,
+	)
+
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, err
 		}
 		return nil, err
 	}

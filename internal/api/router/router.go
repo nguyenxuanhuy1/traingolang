@@ -2,6 +2,8 @@ package router
 
 import (
 	"traingolang/internal/api/handler"
+	"traingolang/internal/auth"
+
 	// "traingolang/internal/websocket"
 
 	"github.com/gin-gonic/gin"
@@ -10,15 +12,18 @@ import (
 func SetupRouter() *gin.Engine {
 	r := gin.Default()
 
-	// User
-	r.POST("/user/register", handler.Register)
-	r.POST("/user/login", handler.Login)
-	// Match API
-	// r.POST("/match/create", handler.CreateMatch)
-	// r.POST("/match/join", handler.JoinMatch)
+	// PUBLIC ROUTES
+	r.POST("/api/user/register", handler.Register)
+	r.POST("/api/user/login", handler.Login)
 
-	// // WebSocket (phải có match_id)
-	// r.GET("/ws/:match_id", websocket.HandleWebSocket)
+	// PROTECTED ROUTES
+	api := r.Group("/api")
+	api.Use(auth.Middleware())
+	{
+		api.POST("/match/create", handler.CreateMatch)
+		api.POST("/match/join", handler.JoinMatch)
+		api.GET("/profile", handler.Profile)
+	}
 
 	return r
 }

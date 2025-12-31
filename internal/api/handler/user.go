@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"database/sql"
 	"net/http"
 
 	"traingolang/internal/auth"
@@ -114,6 +115,55 @@ func Login(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"access_token":  accessToken,
 		"refresh_token": refreshToken,
-		// "username":      user.Username,
+	})
+}
+
+func Profile(c *gin.Context) {
+	// 1. Lấy claims từ middleware
+	claimsAny, exists := c.Get(auth.ContextUserKey)
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{
+			"error": "unauthorized",
+		})
+		return
+	}
+
+	claims, ok := claimsAny.(*auth.Claims)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{
+			"error": "invalid token",
+		})
+		return
+	}
+
+	userID := claims.UserID
+
+	// 2. Query DB
+	userRepo := repository.NewUserRepository(config.DB)
+	// user, err := userRepo.FindByID(userID)
+	// if err != nil {
+	// 	c.JSON(http.StatusNotFound, gin.H{
+	// 		"error": "user not found",
+	// 	})
+	// 	return
+	// }
+	user, err := userRepo.FindByID(userID)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			c.JSON(http.StatusNotFound, gin.H{
+				"error": "user not found",
+			})
+		} else {
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"error": err.Error(), // tạm thời để debug
+			})
+		}
+		return
+	}
+
+	// 3. Response
+	c.JSON(http.StatusOK, gin.H{
+		"username": user.Username,
+		"avatar":   user.Avatar,
 	})
 }
