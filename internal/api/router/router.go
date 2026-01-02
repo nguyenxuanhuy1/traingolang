@@ -23,6 +23,7 @@ func SetupRouter() *gin.Engine {
 		api.POST("/match/create", handler.CreateMatch)
 		api.POST("/match/join", handler.JoinMatch)
 		api.GET("/profile", handler.Profile)
+		api.POST("/upload", handler.UploadHandler)
 	}
 
 	return r
