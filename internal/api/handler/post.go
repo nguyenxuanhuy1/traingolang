@@ -2,91 +2,88 @@ package handler
 
 import (
 	"database/sql"
-	"fmt"
+	"encoding/json"
 	"net/http"
 	"time"
+	"traingolang/internal/repository"
 
 	"github.com/gin-gonic/gin"
 )
 
-type Post struct {
-	ID          int64
-	ImageID     sql.NullInt64
-	Name        string
-	Description string
-	Topic       string
-	Prompt      sql.NullString
-	IsHot       bool
-	HotAt       sql.NullTime
-	CreatedAt   time.Time
-	UpdatedAt   time.Time
-}
-
-// ----- Struct request -----
 type CreatePostRequest struct {
-	Name        string `form:"name" binding:"required"`
-	Description string `form:"description"`
-	Topic       string `form:"topic"`
-	Prompt      string `form:"prompt"`
-	IsHot       bool   `form:"isHot"`
+	Name        string `json:"name"`        // tên bài viết
+	Description string `json:"description"` // mô tả
+	Topic       string `json:"topic"`       // chủ đề
+	Prompt      string `json:"prompt"`      // prompt nếu có
+	HotLevel    int8   `json:"hotLevel"`
+}
+type SearchPostRequest struct {
+	Name     string `json:"name"`
+	hotLevel *int8  `json:"isHot"`
+	Page     int    `json:"page"`
+	PageSize int    `json:"pageSize"`
 }
 
-func CreatePostHandler(db *sql.DB) gin.HandlerFunc {
+func CreatePost(postRepo repository.PostRepo, imageRepo repository.ImageRepo) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		// 1. Parse các field thường
+		// 1. Lấy JSON data
+		dataStr := c.PostForm("data")
+		if dataStr == "" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "data is required"})
+			return
+		}
+
 		var req CreatePostRequest
-		if err := c.ShouldBind(&req); err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		if err := json.Unmarshal([]byte(dataStr), &req); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid data object"})
 			return
 		}
 
-		// 2. Lấy file ảnh
-		file, err := c.FormFile("image")
-		if err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "image is required"})
-			return
-		}
-
-		// 3. Lưu file vào folder local (hoặc thay bằng Cloudinary)
-		dst := fmt.Sprintf("uploads/%d_%s", time.Now().UnixNano(), file.Filename)
-		if err := c.SaveUploadedFile(file, dst); err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-			return
-		}
-
-		// 4. Lưu vào bảng images
-		result, err := db.Exec("INSERT INTO images (url, created_at) VALUES (?, ?)", dst, time.Now())
+		// 2. Upload ảnh + lưu DB dùng helper
+		img, err := UploadAndSaveImage(c, "post")
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return
 		}
-		imageID, _ := result.LastInsertId()
 
-		// 5. Tạo post với ImageID
-		post := Post{
-			ImageID:     sql.NullInt64{Int64: imageID, Valid: true},
+		// 3. Tạo post
+		post := &repository.Post{
+			ImageID:     sql.NullInt64{Int64: img.ID, Valid: true},
 			Name:        req.Name,
 			Description: req.Description,
 			Topic:       req.Topic,
 			Prompt:      sql.NullString{String: req.Prompt, Valid: req.Prompt != ""},
-			IsHot:       req.IsHot,
+			HotLevel:    req.HotLevel,
 			CreatedAt:   time.Now(),
 			UpdatedAt:   time.Now(),
 		}
 
-		// 6. Insert post vào DB
-		resultPost, err := db.Exec(
-			`INSERT INTO posts (image_id, name, description, topic, prompt, is_hot, created_at, updated_at)
-			 VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-			post.ImageID, post.Name, post.Description, post.Topic, post.Prompt, post.IsHot, post.CreatedAt, post.UpdatedAt,
-		)
+		postID, err := postRepo.CreatePost(post)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return
 		}
-		postID, _ := resultPost.LastInsertId()
 		post.ID = postID
 
-		c.JSON(http.StatusOK, gin.H{"data": post})
+		c.JSON(http.StatusCreated, gin.H{
+			"message": "Tạo mới thành công",
+		})
+	}
+}
+func SearchPostsHandler(postRepo repository.PostRepo) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		var req SearchPostRequest
+		if err := c.ShouldBindJSON(&req); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body"})
+			return
+		}
+
+		result, err := postRepo.SearchPosts(req.Name, req.hotLevel, req.Page, req.PageSize)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+
+		c.JSON(http.StatusOK, result)
 	}
 }

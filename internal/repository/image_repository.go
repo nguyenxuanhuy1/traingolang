@@ -1,6 +1,9 @@
 package repository
 
-import "database/sql"
+import (
+	"database/sql"
+	"time"
+)
 
 type Image struct {
 	ID          int64
@@ -10,31 +13,35 @@ type Image struct {
 	PublicID    string
 	ImageType   string
 	OwnerID     sql.NullInt64
+	CreatedAt   time.Time
 }
 
-type ImageRepository struct {
+type ImageRepo interface {
+	Create(img *Image) error
+}
+
+type imageRepo struct {
 	db *sql.DB
 }
 
-func NewImageRepository(db *sql.DB) *ImageRepository {
-	return &ImageRepository{db: db}
+func NewImageRepository(db *sql.DB) ImageRepo {
+	return &imageRepo{db: db}
 }
 
-func (r *ImageRepository) Create(img *Image) error {
+func (r *imageRepo) Create(img *Image) error {
 	query := `
-		INSERT INTO images
-		(image_url, blur_url, tiny_blur_url, public_id, image_type, owner_id)
-		VALUES ($1, $2, $3, $4, $5, $6)
+		INSERT INTO images (image_url, blur_url, tiny_blur_url, public_id, image_type, owner_id, created_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7)
 		RETURNING id
 	`
-
-	return r.db.QueryRow(
+	var id int64
+	err := r.db.QueryRow(
 		query,
-		img.ImageURL,
-		img.BlurURL,
-		img.TinyBlurURL,
-		img.PublicID,
-		img.ImageType,
-		img.OwnerID,
-	).Scan(&img.ID)
+		img.ImageURL, img.BlurURL, img.TinyBlurURL, img.PublicID, img.ImageType, img.OwnerID, time.Now(),
+	).Scan(&id)
+	if err != nil {
+		return err
+	}
+	img.ID = id
+	return nil
 }

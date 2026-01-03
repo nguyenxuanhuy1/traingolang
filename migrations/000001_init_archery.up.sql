@@ -36,8 +36,7 @@ CREATE TABLE posts (
     description VARCHAR(255),
     topic VARCHAR(100) NOT NULL,
     prompt TEXT,
-
-    is_hot BOOLEAN DEFAULT FALSE,
+    hot_level SMALLINT DEFAULT 0 CHECK (hot_level BETWEEN 0 AND 9),
     hot_at TIMESTAMPTZ,
 
     created_at TIMESTAMPTZ DEFAULT now(),
@@ -48,4 +47,4 @@ CREATE INDEX idx_posts_topic_created
 ON posts (topic, created_at DESC);
 
 CREATE INDEX idx_posts_hot
-ON posts (is_hot, hot_at DESC);
+ON posts (hot_level DESC, hot_at DESC);

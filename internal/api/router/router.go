@@ -3,6 +3,8 @@ package router
 import (
 	"traingolang/internal/api/handler"
 	"traingolang/internal/auth"
+	"traingolang/internal/config"
+	"traingolang/internal/repository"
 
 	// "traingolang/internal/websocket"
 
@@ -11,7 +13,8 @@ import (
 
 func SetupRouter() *gin.Engine {
 	r := gin.Default()
-
+	postRepo := repository.NewPostRepo(config.DB)
+	imageRepo := repository.NewImageRepository(config.DB)
 	// PUBLIC ROUTES
 	r.POST("/api/user/register", handler.Register)
 	r.POST("/api/user/login", handler.Login)
@@ -24,6 +27,8 @@ func SetupRouter() *gin.Engine {
 		api.POST("/match/join", handler.JoinMatch)
 		api.GET("/profile", handler.Profile)
 		api.POST("/upload", handler.UploadHandler)
+		api.POST("/create/post", handler.CreatePost(postRepo, imageRepo))
+		api.POST("/search/post", handler.SearchPostsHandler(postRepo))
 	}
 
 	return r

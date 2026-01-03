@@ -76,7 +76,7 @@ func Login(c *gin.Context) {
 
 	user, err := userRepo.FindByUsername(req.Username)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid credentials"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Sai tài khoản hoặc mật khẩu"})
 		return
 	}
 
@@ -93,7 +93,7 @@ func Login(c *gin.Context) {
 		[]byte(user.Password),
 		[]byte(req.Password),
 	); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid credentials"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Sai tài khoản hoặc mật khẩu"})
 		return
 	}
 
