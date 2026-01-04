@@ -27,7 +27,21 @@ func SetupRouter() *gin.Engine {
 		api.POST("/match/join", handler.JoinMatch)
 		api.GET("/profile", handler.Profile)
 		api.POST("/upload", handler.UploadHandler)
-		api.POST("/create/post", handler.CreatePost(postRepo, imageRepo))
+		api.POST(
+			"/create/post",
+			auth.AdminOnly(),
+			handler.CreatePost(postRepo, imageRepo),
+		)
+		api.POST(
+			"/update/post/:id",
+			auth.AdminOnly(),
+			handler.UpdatePost(postRepo, imageRepo),
+		)
+		api.POST(
+			"delete/post/:id",
+			auth.AdminOnly(),
+			handler.DeletePost(postRepo),
+		)
 		api.POST("/search/post", handler.SearchPostsHandler(postRepo))
 	}
 

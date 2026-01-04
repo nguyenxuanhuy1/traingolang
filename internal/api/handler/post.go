@@ -4,13 +4,14 @@ import (
 	"database/sql"
 	"encoding/json"
 	"net/http"
+	"strconv"
 	"time"
 	"traingolang/internal/repository"
 
 	"github.com/gin-gonic/gin"
 )
 
-type CreatePostRequest struct {
+type PostRequest struct {
 	Name        string `json:"name"`        // tên bài viết
 	Description string `json:"description"` // mô tả
 	Topic       string `json:"topic"`       // chủ đề
@@ -19,7 +20,7 @@ type CreatePostRequest struct {
 }
 type SearchPostRequest struct {
 	Name     string `json:"name"`
-	hotLevel *int8  `json:"isHot"`
+	HotLevel *int8  `json:"hotLevel"`
 	Page     int    `json:"page"`
 	PageSize int    `json:"pageSize"`
 }
@@ -33,7 +34,7 @@ func CreatePost(postRepo repository.PostRepo, imageRepo repository.ImageRepo) gi
 			return
 		}
 
-		var req CreatePostRequest
+		var req PostRequest
 		if err := json.Unmarshal([]byte(dataStr), &req); err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid data object"})
 			return
@@ -78,12 +79,101 @@ func SearchPostsHandler(postRepo repository.PostRepo) gin.HandlerFunc {
 			return
 		}
 
-		result, err := postRepo.SearchPosts(req.Name, req.hotLevel, req.Page, req.PageSize)
+		result, err := postRepo.SearchPosts(req.Name, req.HotLevel, req.Page, req.PageSize)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return
 		}
 
 		c.JSON(http.StatusOK, result)
+	}
+}
+func UpdatePost(postRepo repository.PostRepo, imageRepo repository.ImageRepo) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		// 1. Lấy id
+		idParam := c.Param("id")
+		postID, err := strconv.ParseInt(idParam, 10, 64)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid post id"})
+			return
+		}
+
+		// 2. Parse data
+		dataStr := c.PostForm("data")
+		if dataStr == "" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "data is required"})
+			return
+		}
+
+		var req PostRequest
+		if err := json.Unmarshal([]byte(dataStr), &req); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid data object"})
+			return
+		}
+
+		// 3. Lấy post cũ
+		post, err := postRepo.GetByID(postID)
+		if err != nil {
+			c.JSON(http.StatusNotFound, gin.H{"error": "post not found"})
+			return
+		}
+
+		// 4. Nếu có upload ảnh mới
+		if _, err := c.FormFile("image"); err == nil {
+			img, err := UploadAndSaveImage(c, "post")
+			if err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+				return
+			}
+			post.ImageID = sql.NullInt64{Int64: img.ID, Valid: true}
+		}
+
+		// 5. Update field
+		post.Name = req.Name
+		post.Description = req.Description
+		post.Topic = req.Topic
+		post.Prompt = sql.NullString{String: req.Prompt, Valid: req.Prompt != ""}
+		post.HotLevel = req.HotLevel
+		post.UpdatedAt = time.Now()
+
+		if err := postRepo.UpdatePost(post); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+
+		c.JSON(http.StatusOK, gin.H{
+			"message": "Cập nhật thành công",
+		})
+	}
+}
+func DeletePost(postRepo repository.PostRepo) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		// 1. Lấy id từ param
+		idParam := c.Param("id")
+		postID, err := strconv.ParseInt(idParam, 10, 64)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid post id"})
+			return
+		}
+
+		post, err := postRepo.GetByID(postID)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+		if post == nil {
+			c.JSON(http.StatusNotFound, gin.H{"error": "post not found"})
+			return
+		}
+
+		// 3. Xoá
+		if err := postRepo.DeletePost(postID); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+
+		c.JSON(http.StatusOK, gin.H{
+			"message": "Xoá thành công",
+		})
 	}
 }
