@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"strconv"
 	"time"
+	"traingolang/internal/helper"
 	"traingolang/internal/repository"
 
 	"github.com/gin-gonic/gin"
@@ -90,45 +91,37 @@ func SearchPostsHandler(postRepo repository.PostRepo) gin.HandlerFunc {
 }
 func UpdatePost(postRepo repository.PostRepo, imageRepo repository.ImageRepo) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		// 1. Lấy id
-		idParam := c.Param("id")
-		postID, err := strconv.ParseInt(idParam, 10, 64)
-		if err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid post id"})
-			return
-		}
+		postID, _ := strconv.ParseInt(c.Param("id"), 10, 64)
 
-		// 2. Parse data
 		dataStr := c.PostForm("data")
-		if dataStr == "" {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "data is required"})
-			return
-		}
-
 		var req PostRequest
-		if err := json.Unmarshal([]byte(dataStr), &req); err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid data object"})
-			return
-		}
+		_ = json.Unmarshal([]byte(dataStr), &req)
 
-		// 3. Lấy post cũ
 		post, err := postRepo.GetByID(postID)
-		if err != nil {
+		if err != nil || post == nil {
 			c.JSON(http.StatusNotFound, gin.H{"error": "post not found"})
 			return
 		}
 
-		// 4. Nếu có upload ảnh mới
 		if _, err := c.FormFile("image"); err == nil {
-			img, err := UploadAndSaveImage(c, "post")
+			if post.ImageID.Valid {
+				oldImg, _ := imageRepo.GetByID(post.ImageID.Int64)
+				if oldImg != nil {
+					_ = helper.DeleteImageFromCloud(oldImg.PublicID)
+					_ = imageRepo.DeleteByID(oldImg.ID)
+				}
+			}
+
+			// Upload ảnh mới
+			newImg, err := UploadAndSaveImage(c, "post")
 			if err != nil {
 				c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 				return
 			}
-			post.ImageID = sql.NullInt64{Int64: img.ID, Valid: true}
+
+			post.ImageID = sql.NullInt64{Int64: newImg.ID, Valid: true}
 		}
 
-		// 5. Update field
 		post.Name = req.Name
 		post.Description = req.Description
 		post.Topic = req.Topic
@@ -136,44 +129,32 @@ func UpdatePost(postRepo repository.PostRepo, imageRepo repository.ImageRepo) gi
 		post.HotLevel = req.HotLevel
 		post.UpdatedAt = time.Now()
 
-		if err := postRepo.UpdatePost(post); err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-			return
-		}
+		_ = postRepo.UpdatePost(post)
 
-		c.JSON(http.StatusOK, gin.H{
-			"message": "Cập nhật thành công",
-		})
+		c.JSON(http.StatusOK, gin.H{"message": "Cập nhật thành công"})
 	}
 }
-func DeletePost(postRepo repository.PostRepo) gin.HandlerFunc {
+
+func DeletePost(postRepo repository.PostRepo, imageRepo repository.ImageRepo) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		// 1. Lấy id từ param
-		idParam := c.Param("id")
-		postID, err := strconv.ParseInt(idParam, 10, 64)
-		if err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid post id"})
-			return
-		}
+		postID, _ := strconv.ParseInt(c.Param("id"), 10, 64)
 
 		post, err := postRepo.GetByID(postID)
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-			return
-		}
-		if post == nil {
+		if err != nil || post == nil {
 			c.JSON(http.StatusNotFound, gin.H{"error": "post not found"})
 			return
 		}
 
-		// 3. Xoá
-		if err := postRepo.DeletePost(postID); err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-			return
+		if post.ImageID.Valid {
+			img, _ := imageRepo.GetByID(post.ImageID.Int64)
+			if img != nil {
+				_ = helper.DeleteImageFromCloud(img.PublicID)
+				_ = imageRepo.DeleteByID(img.ID)
+			}
 		}
 
-		c.JSON(http.StatusOK, gin.H{
-			"message": "Xoá thành công",
-		})
+		_ = postRepo.DeletePost(postID)
+
+		c.JSON(http.StatusOK, gin.H{"message": "Xoá thành công"})
 	}
 }

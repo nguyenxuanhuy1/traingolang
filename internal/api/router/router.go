@@ -13,12 +13,13 @@ import (
 
 func SetupRouter() *gin.Engine {
 	r := gin.Default()
+	r.MaxMultipartMemory = 1 << 20
 	postRepo := repository.NewPostRepo(config.DB)
 	imageRepo := repository.NewImageRepository(config.DB)
 	// PUBLIC ROUTES
 	r.POST("/api/user/register", handler.Register)
 	r.POST("/api/user/login", handler.Login)
-
+	r.POST("/search/post", handler.SearchPostsHandler(postRepo))
 	// PROTECTED ROUTES
 	api := r.Group("/api")
 	api.Use(auth.Middleware())
@@ -32,17 +33,16 @@ func SetupRouter() *gin.Engine {
 			auth.AdminOnly(),
 			handler.CreatePost(postRepo, imageRepo),
 		)
-		api.POST(
-			"/update/post/:id",
+		api.POST("/update/post/:id",
 			auth.AdminOnly(),
 			handler.UpdatePost(postRepo, imageRepo),
 		)
-		api.POST(
-			"delete/post/:id",
+
+		api.POST("/delete/post/:id",
 			auth.AdminOnly(),
-			handler.DeletePost(postRepo),
+			handler.DeletePost(postRepo, imageRepo),
 		)
-		api.POST("/search/post", handler.SearchPostsHandler(postRepo))
+
 	}
 
 	return r
