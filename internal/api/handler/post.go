@@ -18,12 +18,12 @@ type PostRequest struct {
 	Description string `json:"description"` // mô tả
 	Topic       string `json:"topic"`       // chủ đề
 	Prompt      string `json:"prompt"`      // prompt nếu có
-	HotLevel    int8   `json:"hotLevel"`
+	HotLevel    int8   `json:"hot_level"`
 }
 type SearchPostRequest struct {
 	Name     string `json:"name"`
 	Topic    string `json:"topic"`
-	HotLevel *int8  `json:"hotLevel"`
+	HotLevel *int8  `json:"hot_level"`
 	Page     int    `json:"page"`
 	PageSize int    `json:"pageSize"`
 }
@@ -46,17 +46,7 @@ func CreatePost(postRepo repository.PostRepo, imageRepo repository.ImageRepo) gi
 			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid data object"})
 			return
 		}
-		// exists, err := postRepo.ExistsByTopic(req.Topic, nil)
-		// if err != nil {
-		// 	c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		// 	return
-		// }
-		// if exists {
-		// 	c.JSON(http.StatusConflict, gin.H{"error": "Topic đã tồn tại"})
-		// 	return
-		// }
 
-		// 2. Upload ảnh + lưu DB dùng helper
 		img, err := UploadAndSaveImage(c, "post")
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
