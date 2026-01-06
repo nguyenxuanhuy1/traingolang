@@ -21,11 +21,11 @@ type Post struct {
 	UpdatedAt   time.Time
 }
 type PostSearchResponse struct {
-	ID          int64   `json:"id"`
-	ImageURL    *string `json:"image_url"`
-	BlurURL     *string `json:"blur_url"`
-	TinyBlurURL *string `json:"tiny_blur_url"`
-
+	ID          int64      `json:"id"`
+	ImageURL    *string    `json:"image_url"`
+	BlurURL     *string    `json:"blur_url"`
+	TinyBlurURL *string    `json:"tiny_blur_url"`
+	Prompt      *string    `json:"Prompt"`
 	Name        string     `json:"name"`
 	Description *string    `json:"description"`
 	Topic       string     `json:"topic"`
@@ -112,10 +112,10 @@ func (r *postRepo) SearchPosts(
 	where := "1=1"
 	args := []interface{}{}
 
-	if name != "" {
-		where += fmt.Sprintf(" AND p.name ILIKE $%d", len(args)+1)
-		args = append(args, "%"+name+"%")
-	}
+	// if name != "" {
+	// 	where += fmt.Sprintf(" AND p.name ILIKE $%d", len(args)+1)
+	// 	args = append(args, "%"+name+"%")
+	// }
 	if topic != "" {
 		where += fmt.Sprintf(" AND p.topic = $%d", len(args)+1)
 		args = append(args, topic)
@@ -135,6 +135,7 @@ func (r *postRepo) SearchPosts(
 			i.image_url,
 			i.blur_url,
 			i.tiny_blur_url,
+			p.prompt,
 			p.name,
 			p.description,
 			p.topic,
@@ -168,6 +169,7 @@ func (r *postRepo) SearchPosts(
 				&p.ImageURL,
 				&p.BlurURL,
 				&p.TinyBlurURL,
+				&p.Prompt,
 				&p.Name,
 				&p.Description,
 				&p.Topic,

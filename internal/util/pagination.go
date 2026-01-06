@@ -26,7 +26,7 @@ func Paginate[T any](
 	db *sql.DB,
 	query string,
 	countQuery string,
-	filterArgs []interface{}, // 👈 chỉ args filter
+	filterArgs []interface{},
 	offset int,
 	limit int,
 	scanRow func(*sql.Rows) (*T, error),
