@@ -14,10 +14,10 @@ import (
 )
 
 type PostRequest struct {
-	Name        string `json:"name"`        // tên bài viết
-	Description string `json:"description"` // mô tả
-	Topic       string `json:"topic"`       // chủ đề
-	Prompt      string `json:"prompt"`      // prompt nếu có
+	Name        string `json:"name"`
+	Description string `json:"description"`
+	Topic       string `json:"topic"`
+	Prompt      string `json:"prompt"`
 	HotLevel    int8   `json:"hot_level"`
 }
 type SearchPostRequest struct {

@@ -25,7 +25,7 @@ type PostSearchResponse struct {
 	ImageURL    *string    `json:"image_url"`
 	BlurURL     *string    `json:"blur_url"`
 	TinyBlurURL *string    `json:"tiny_blur_url"`
-	Prompt      *string    `json:"Prompt"`
+	Prompt      *string    `json:"prompt"`
 	Name        string     `json:"name"`
 	Description *string    `json:"description"`
 	Topic       string     `json:"topic"`
